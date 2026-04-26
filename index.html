@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تطبيق الرعاية الصحية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    font-family: 'Cairo', sans-serif;
+    background: #eef2f7;
+    direction: rtl;
+  }
+
+  nav {
+    background: #fff;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 68px;
+    position: sticky; top: 0; z-index: 200;
+  }
+  .nav-logo {
+    width: 46px; height: 46px; border-radius: 50%;
+    background: linear-gradient(135deg,#1a73e8,#0d47a1);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; cursor: pointer;
+    border: 2px solid #1a73e8; overflow: hidden; flex-shrink: 0;
+  }
+  .nav-logo img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+  .nav-links { display:flex; gap:32px; list-style:none; align-items:center; }
+  .nav-links a { text-decoration:none; color:#444; font-weight:700; font-size:15px; transition:color .2s; }
+  .nav-links a:hover, .nav-links a.active { color:#1a73e8; }
+  .nav-right { display:flex; align-items:center; gap:14px; }
+  .nav-icon { width:40px; height:40px; border-radius:50%; background:#f5f5f5; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; }
+  .nav-icon:hover { background:#e8f0fe; }
+  .nav-icon svg { width:20px; height:20px; stroke:#555; fill:none; stroke-width:2; }
+  .badge { position:absolute; top:-2px; left:-2px; background:#e53935; color:#fff; font-size:10px; font-weight:800; width:17px; height:17px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .user-btn { width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg,#42a5f5,#1565c0); display:flex; align-items:center; justify-content:center; cursor:pointer; border:2.5px solid #1a73e8; font-size:20px; overflow:hidden; flex-shrink:0; }
+  .user-btn img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 18px;
+    padding: 22px 28px;
+    height: calc(100vh - 68px);
+    min-height: 580px;
+  }
+
+  .card {
+    background: #fff; border-radius: 20px;
+    box-shadow: 0 3px 14px rgba(0,0,0,0.07);
+    padding: 22px; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .card-title { font-size:19px; font-weight:900; color:#111; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+
+  .card-emergency { grid-column:3; grid-row:1; }
+  .btn-danger { background:#e53935; color:#fff; border:none; border-radius:14px; padding:22px; width:100%; font-family:'Cairo',sans-serif; font-size:22px; font-weight:900; cursor:pointer; transition:all .2s; margin-bottom:14px; }
+  .btn-danger:hover { background:#c62828; }
+  .btn-ambulance { background:#fff; color:#333; border:2px solid #ddd; border-radius:12px; padding:13px; width:100%; font-family:'Cairo',sans-serif; font-size:16px; font-weight:700; cursor:pointer; transition:all .2s; }
+  .btn-ambulance:hover { border-color:#1a73e8; color:#1a73e8; }
+  .btn-ambulance.cancel { background:#fce4ec; border-color:#e53935; color:#c62828; }
+  .countdown-box { display:none; margin-top:14px; background:#fff8e1; border:2px solid #ffc107; border-radius:12px; padding:14px; text-align:center; }
+  .countdown-box.on { display:block; }
+  .countdown-num { font-size:34px; font-weight:900; color:#f57c00; }
+  .countdown-lbl { font-size:13px; color:#999; }
+  .arrived-box { display:none; margin-top:14px; background:#e8f5e9; border:2px solid #4caf50; border-radius:12px; padding:14px; text-align:center; font-weight:800; color:#2e7d32; font-size:16px; }
+  .arrived-box.on { display:block; }
+  .btn-cancel-small { margin-top:10px; background:#fce4ec; color:#c62828; border:none; border-radius:8px; padding:9px; font-family:'Cairo',sans-serif; font-weight:700; font-size:13px; cursor:pointer; width:100%; }
+
+  .card-map { grid-column:2; grid-row:1/3; padding:0; position:relative; }
+  #map { width:100%; height:72%; border-radius:20px 20px 0 0; }
+  .map-info { padding:16px 18px; border-top:1px solid #f0f0f0; flex:1; }
+  .map-hosp-name { font-size:16px; font-weight:800; color:#222; margin-bottom:3px; }
+  .map-hosp-sub { font-size:13px; color:#888; margin-bottom:8px; }
+  .tags { display:flex; gap:8px; flex-wrap:wrap; }
+  .tag { background:#e8f5e9; color:#2e7d32; font-size:13px; font-weight:700; padding:5px 12px; border-radius:20px; }
+
+  #map-loading { position:absolute; inset:0; background:#eef2f7; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; z-index:10; border-radius:20px; }
+  .spinner { width:40px; height:40px; border:4px solid #ddd; border-top-color:#1a73e8; border-radius:50%; animation:spin .8s linear infinite; }
+  @keyframes spin { to{transform:rotate(360deg);} }
+  #loading-text { font-size:14px; color:#777; font-weight:600; }
+
+  .card-hospital { grid-column:1; grid-row:1; }
+  .hosp-name { font-size:16px; font-weight:800; color:#1a73e8; margin-bottom:2px; }
+  .hosp-dist { font-size:13px; color:#888; margin-bottom:8px; }
+  .tag-btns { display:flex; gap:8px; flex-wrap:wrap; }
+  .tag-btn { background:#e8f5e9; color:#2e7d32; border:none; font-family:'Cairo',sans-serif; font-size:13px; font-weight:700; padding:5px 12px; border-radius:20px; cursor:pointer; transition:background .2s; }
+  .tag-btn:hover { background:#c8e6c9; }
+
+  .card-wallet { grid-column:3; grid-row:2; }
+  .wallet-amount { font-size:34px; font-weight:900; color:#111; margin-bottom:2px; }
+  .wallet-lbl { font-size:13px; color:#888; margin-bottom:auto; }
+  .btn-blue { background:#1a73e8; color:#fff; border:none; border-radius:12px; padding:13px; width:100%; font-family:'Cairo',sans-serif; font-size:16px; font-weight:700; cursor:pointer; margin-top:auto; transition:background .2s; }
+  .btn-blue:hover { background:#1557b0; }
+
+  .card-blood { grid-column:1; grid-row:2; }
+  .blood-type { font-size:32px; font-weight:900; color:#e53935; margin-bottom:4px; }
+  .blood-avail { font-size:14px; color:#4caf50; font-weight:700; }
+  .btn-red { background:#e53935; color:#fff; border:none; border-radius:12px; padding:13px; width:100%; font-family:'Cairo',sans-serif; font-size:16px; font-weight:700; cursor:pointer; margin-top:auto; transition:background .2s; }
+  .btn-red:hover { background:#c62828; }
+
+  .overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:500; align-items:center; justify-content:center; }
+  .overlay.on { display:flex; }
+  .modal { background:#fff; border-radius:20px; padding:30px; width:400px; max-width:95vw; direction:rtl; }
+  .modal h3 { font-size:20px; font-weight:800; margin-bottom:20px; color:#111; }
+  .modal input[type=number] { width:100%; padding:13px 16px; border:2px solid #ddd; border-radius:12px; font-family:'Cairo',sans-serif; font-size:16px; margin-bottom:16px; outline:none; direction:ltr; text-align:center; }
+  .modal input[type=number]:focus { border-color:#1a73e8; }
+  .modal-btns { display:flex; gap:10px; }
+  .modal-ok { flex:1; background:#1a73e8; color:#fff; border:none; border-radius:12px; padding:13px; font-family:'Cairo',sans-serif; font-size:15px; font-weight:700; cursor:pointer; }
+  .modal-x { flex:1; background:#f0f0f0; color:#555; border:none; border-radius:12px; padding:13px; font-family:'Cairo',sans-serif; font-size:15px; font-weight:700; cursor:pointer; }
+  #profile-preview { width:90px; height:90px; border-radius:50%; background:#e8f0fe; margin:0 auto 14px; display:flex; align-items:center; justify-content:center; font-size:40px; overflow:hidden; border:3px solid #1a73e8; }
+  #profile-preview img { width:100%; height:100%; object-fit:cover; }
+  .pick-btn { display:block; width:100%; background:#e8f0fe; color:#1a73e8; border:none; border-radius:12px; padding:11px; font-family:'Cairo',sans-serif; font-size:15px; font-weight:700; cursor:pointer; margin-bottom:16px; }
+
+  #snack { display:none; position:fixed; bottom:28px; left:50%; transform:translateX(-50%); background:#212121; color:#fff; padding:13px 28px; border-radius:30px; font-family:'Cairo',sans-serif; font-size:14px; font-weight:600; z-index:600; white-space:nowrap; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo" id="logo-wrap" onclick="openModal('profile-modal')">🏥</div>
+  <ul class="nav-links">
+    <li><a href="#" class="active">الرئيسية</a></li>
+    <li><a href="#">المستشفيات</a></li>
+    <li><a href="#">طوارئ</a></li>
+    <li><a href="#">المحفظة</a></li>
+    <li><a href="#">بنك الدم</a></li>
+    <li><a href="#">شات الطبي</a></li>
+  </ul>
+  <div class="nav-right">
+    <div class="nav-icon">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    </div>
+    <div class="nav-icon">
+      <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span class="badge">3</span>
+    </div>
+    <div class="user-btn" id="user-btn" onclick="openModal('profile-modal')">👤</div>
+  </div>
+</nav>
+
+<div class="grid">
+
+  <div class="card card-hospital">
+    <div class="card-title">🏥 أقرب مستشفى</div>
+    <div id="hospital-list"><div style="color:#aaa;font-size:14px;">جاري تحديد موقعك...</div></div>
+  </div>
+
+  <div class="card card-map">
+    <div id="map-loading">
+      <div class="spinner"></div>
+      <div id="loading-text">جاري طلب إذن الموقع...</div>
+    </div>
+    <div id="map"></div>
+    <div class="map-info">
+      <div class="map-hosp-name" id="map-name">جاري البحث عن أقرب مستشفى...</div>
+      <div class="map-hosp-sub" id="map-dist">يتم تحديد الموقع</div>
+      <div class="tags" id="map-tags"></div>
+    </div>
+  </div>
+
+  <div class="card card-emergency">
+    <div class="card-title">🚨 الطوارئ</div>
+    <button class="btn-danger" id="danger-btn" onclick="triggerDanger()">أنا في خطر</button>
+    <button class="btn-ambulance" id="amb-btn" onclick="requestAmbulance()">طلب إسعاف</button>
+    <div class="countdown-box" id="countdown-box">
+      <div class="countdown-lbl">الإسعاف في طريقه إليك</div>
+      <div class="countdown-num" id="countdown-num">8:00</div>
+      <div class="countdown-lbl">دقائق متبقية</div>
+      <button class="btn-cancel-small" onclick="cancelAmbulance()">❌ إلغاء الطلب</button>
+    </div>
+    <div class="arrived-box" id="arrived-box">🚑 الإسعاف وصل إليك!</div>
+  </div>
+
+  <div class="card card-blood">
+    <div class="card-title">🩸 بنك الدم</div>
+    <div class="blood-type">نقص O-</div>
+    <div class="blood-avail">فصيلة A+ متاحة</div>
+    <button class="btn-red" onclick="findBloodBank()">تبرع</button>
+  </div>
+
+  <div class="card card-wallet">
+    <div class="card-title">💳 محفظتي</div>
+    <div class="wallet-amount" id="wallet-num">5000 EGP</div>
+    <div class="wallet-lbl">Balance</div>
+    <button class="btn-blue" onclick="openModal('wallet-modal')">إضافة أموال</button>
+  </div>
+
+</div>
+
+<!-- WALLET MODAL -->
+<div class="overlay" id="wallet-modal">
+  <div class="modal">
+    <h3>💳 إضافة أموال للمحفظة</h3>
+    <input type="number" id="amount-input" placeholder="أدخل المبلغ (EGP)" min="1">
+    <div class="modal-btns">
+      <button class="modal-ok" onclick="addMoney()">إضافة</button>
+      <button class="modal-x" onclick="closeModal('wallet-modal')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROFILE MODAL -->
+<div class="overlay" id="profile-modal">
+  <div class="modal">
+    <h3>👤 صورة الملف الشخصي</h3>
+    <div id="profile-preview">👤</div>
+    <input type="file" id="photo-input" accept="image/*" style="display:none" onchange="handlePhoto(event)">
+    <button class="pick-btn" onclick="document.getElementById('photo-input').click()">📷 اختر صورة</button>
+    <div class="modal-btns">
+      <button class="modal-ok" onclick="savePhoto()">حفظ</button>
+      <button class="modal-x" onclick="closeModal('profile-modal')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<div id="snack"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let map, userLat, userLng, userMarker;
+let ambRequested = false, countdownInterval = null;
+let balance = 5000;
+let pendingPhoto = null;
+let extraMarkers = [];
+
+function snack(msg, ms=3500) {
+  const el = document.getElementById('snack');
+  el.textContent = msg;
+  el.style.display = 'block';
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>el.style.display='none', ms);
+}
+
+function openModal(id) { document.getElementById(id).classList.add('on'); }
+function closeModal(id) { document.getElementById(id).classList.remove('on'); }
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('on');}));
+
+function calcDist(a,b,c,d){
+  const R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;
+  const x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2;
+  return(R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))).toFixed(1);
+}
+
+async function overpass(query) {
+  const r = await fetch('https://overpass-api.de/api/interpreter', {
+    method:'POST', body:'data='+encodeURIComponent(query)
+  });
+  if(!r.ok) throw new Error('Overpass failed');
+  return r.json();
+}
+
+function mkIcon(emoji, color) {
+  return L.divIcon({
+    html:`<div style="background:${color};color:#fff;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3);">${emoji}</div>`,
+    className:'', iconAnchor:[17,17]
+  });
+}
+
+function addExtra(lat, lng, emoji, label, color) {
+  const m = L.marker([lat,lng],{icon:mkIcon(emoji,color)}).addTo(map).bindPopup(label).openPopup();
+  extraMarkers.push(m);
+}
+function clearExtra(){ extraMarkers.forEach(m=>map.removeLayer(m)); extraMarkers=[]; }
+
+function initMap(lat, lng) {
+  document.getElementById('map-loading').style.display='none';
+  map = L.map('map').setView([lat,lng],15);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
+  userMarker = L.marker([lat,lng],{
+    icon:L.divIcon({html:`<div style="background:#1a73e8;width:20px;height:20px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);"></div>`,className:'',iconAnchor:[10,10]})
+  }).addTo(map).bindPopup('📍 موقعك الحالي').openPopup();
+  loadHospitals(lat,lng);
+}
+
+async function loadHospitals(lat, lng) {
+  snack('🔍 جاري البحث عن المستشفيات القريبة...');
+  try {
+    const q=`[out:json][timeout:30];(node["amenity"="hospital"](around:8000,${lat},${lng});way["amenity"="hospital"](around:8000,${lat},${lng}););out body center;`;
+    const data = await overpass(q);
+    let els=(data.elements||[]).map(el=>({
+      name:el.tags?.['name:ar']||el.tags?.name||'مستشفى',
+      lat:el.lat??el.center?.lat, lng:el.lon??el.center?.lon
+    })).filter(h=>h.lat&&h.lng);
+
+    if(!els.length) els=[{name:'مستشفى قريب',lat:lat+0.012,lng:lng+0.009}];
+
+    els.slice(0,6).forEach(h=>{
+      L.marker([h.lat,h.lng],{icon:mkIcon('🏥','#e53935')}).addTo(map).bindPopup(h.name);
+    });
+
+    els.sort((a,b)=>calcDist(lat,lng,a.lat,a.lng)-calcDist(lat,lng,b.lat,b.lng));
+    const n=els[0], km=calcDist(lat,lng,n.lat,n.lng);
+
+    document.getElementById('map-name').textContent=n.name;
+    document.getElementById('map-dist').textContent=`على بُعد ${km} كم`;
+    document.getElementById('map-tags').innerHTML=`<span class="tag">عيادة أسنان</span><span class="tag">صيدلية</span><span class="tag">طوارئ</span>`;
+
+    document.getElementById('hospital-list').innerHTML=`
+      <div>
+        <div class="hosp-name">${n.name}</div>
+        <div class="hosp-dist">على بُعد ${km} كم</div>
+        <div class="tag-btns">
+          <button class="tag-btn" onclick="findNearby('dentist','عيادة أسنان','🦷','#1a73e8')">• عيادة أسنان</button>
+          <button class="tag-btn" onclick="findNearby('pharmacy','صيدلية','💊','#4caf50')">• صيدلية</button>
+        </div>
+      </div>`;
+    snack(`✅ تم العثور على ${els.length} مستشفى قريب`);
+  } catch(e) {
+    snack('⚠️ تعذر تحميل المستشفيات — تحقق من الاتصال');
+    document.getElementById('hospital-list').innerHTML='<div style="color:#e53935;font-size:13px;">تعذر التحميل</div>';
+  }
+}
+
+async function findNearby(amenity, label, emoji, color) {
+  if(!userLat){snack('يتم تحديد موقعك...');return;}
+  snack(`🔍 جاري البحث عن أقرب ${label}...`);
+  clearExtra();
+  try {
+    const q=`[out:json][timeout:20];node["amenity"="${amenity}"](around:5000,${userLat},${userLng});out body;`;
+    const data=await overpass(q);
+    const els=data.elements||[];
+    if(!els.length){snack(`لا توجد ${label} في نطاق 5 كم`);return;}
+    const sorted=els.sort((a,b)=>calcDist(userLat,userLng,a.lat,a.lon)-calcDist(userLat,userLng,b.lat,b.lon));
+    const n=sorted[0];
+    const name=n.tags?.['name:ar']||n.tags?.name||label;
+    const km=calcDist(userLat,userLng,n.lat,n.lon);
+    addExtra(n.lat,n.lon,emoji,`${name} — ${km} كم`,color);
+    map.flyTo([n.lat,n.lon],16,{duration:1.2});
+    snack(`${emoji} أقرب ${label}: ${name} (${km} كم)`);
+  } catch(e){snack('⚠️ خطأ في البحث');}
+}
+
+async function findBloodBank() {
+  if(!userLat){snack('يتم تحديد موقعك...');return;}
+  snack('🩸 جاري البحث عن أقرب مركز تبرع...');
+  clearExtra();
+  try {
+    const q=`[out:json][timeout:25];(node["amenity"="blood_bank"](around:15000,${userLat},${userLng});node["healthcare"="blood_bank"](around:15000,${userLat},${userLng});node["amenity"="hospital"](around:8000,${userLat},${userLng}););out body center;`;
+    const data=await overpass(q);
+    const els=(data.elements||[]).filter(e=>e.lat&&e.lon);
+    if(!els.length){snack('لا توجد مراكز تبرع قريبة');return;}
+    const sorted=els.sort((a,b)=>calcDist(userLat,userLng,a.lat,a.lon)-calcDist(userLat,userLng,b.lat,b.lon));
+    const n=sorted[0];
+    const name=n.tags?.['name:ar']||n.tags?.name||'مركز تبرع';
+    const km=calcDist(userLat,userLng,n.lat,n.lon);
+    addExtra(n.lat,n.lon,'🩸',`${name} — ${km} كم`,'#e53935');
+    map.flyTo([n.lat,n.lon],16,{duration:1.5});
+    snack(`🩸 أقرب مركز: ${name} (${km} كم)`);
+  } catch(e){snack('⚠️ خطأ في البحث');}
+}
+
+function requestAmbulance() {
+  if(ambRequested)return;
+  ambRequested=true;
+  const btn=document.getElementById('amb-btn');
+  btn.textContent='🚑 جاري إرسال الطلب...'; btn.disabled=true;
+  setTimeout(()=>{
+    document.getElementById('countdown-box').classList.add('on');
+    let sec=8*60;
+    function tick(){
+      const m=Math.floor(sec/60),s=sec%60;
+      document.getElementById('countdown-num').textContent=`${m}:${s.toString().padStart(2,'0')}`;
+      if(sec--<=0){clearInterval(countdownInterval);document.getElementById('countdown-box').classList.remove('on');document.getElementById('arrived-box').classList.add('on');btn.style.display='none';ambRequested=false;return;}
+    }
+    tick(); countdownInterval=setInterval(tick,1000);
+    if(map&&userLat) L.marker([userLat+0.006,userLng+0.004],{icon:L.divIcon({html:`<div style="font-size:30px;">🚑</div>`,className:'',iconAnchor:[15,15]})}).addTo(map).bindPopup('الإسعاف في الطريق');
+    btn.textContent='إلغاء الطلب'; btn.className='btn-ambulance cancel'; btn.disabled=false; btn.onclick=cancelAmbulance;
+    snack('✅ تم إرسال طلب الإسعاف');
+  },1500);
+}
+
+function cancelAmbulance(){
+  ambRequested=false; clearInterval(countdownInterval);
+  document.getElementById('countdown-box').classList.remove('on');
+  document.getElementById('arrived-box').classList.remove('on');
+  const btn=document.getElementById('amb-btn');
+  btn.textContent='طلب إسعاف'; btn.className='btn-ambulance'; btn.style.display=''; btn.onclick=requestAmbulance;
+  snack('❌ تم إلغاء طلب الإسعاف');
+}
+
+function triggerDanger(){
+  document.getElementById('danger-btn').style.background='#b71c1c';
+  snack('🚨 تم إرسال إشارة الخطر');
+  if(!ambRequested)requestAmbulance();
+}
+
+function addMoney(){
+  const v=parseFloat(document.getElementById('amount-input').value);
+  if(!v||v<=0){snack('أدخل مبلغاً صحيحاً');return;}
+  balance+=v;
+  document.getElementById('wallet-num').textContent=`${balance.toLocaleString()} EGP`;
+  closeModal('wallet-modal'); document.getElementById('amount-input').value='';
+  snack(`✅ تمت إضافة ${v.toLocaleString()} EGP`);
+}
+
+function handlePhoto(e){
+  const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{pendingPhoto=ev.target.result; document.getElementById('profile-preview').innerHTML=`<img src="${pendingPhoto}">`;}
+  r.readAsDataURL(f);
+}
+function savePhoto(){
+  if(!pendingPhoto){snack('اختر صورة أولاً');return;}
+  const img=`<img src="${pendingPhoto}">`;
+  document.getElementById('logo-wrap').innerHTML=img;
+  document.getElementById('user-btn').innerHTML=img;
+  closeModal('profile-modal');
+  snack('✅ تم حفظ الصورة');
+}
+
+// GEOLOCATION
+if(navigator.geolocation){
+  navigator.geolocation.getCurrentPosition(
+    pos=>{userLat=pos.coords.latitude;userLng=pos.coords.longitude;initMap(userLat,userLng);},
+    err=>{
+      let msg='تعذر تحديد موقعك';
+      if(err.code===1)msg='⚠️ يرجى السماح بالوصول للموقع من الإعدادات';
+      document.getElementById('loading-text').textContent=msg;
+      snack(msg,5000);
+      setTimeout(()=>{userLat=30.0444;userLng=31.2357;initMap(userLat,userLng);},2500);
+    },
+    {enableHighAccuracy:true,timeout:15000,maximumAge:0}
+  );
+} else {
+  userLat=30.0444;userLng=31.2357;initMap(userLat,userLng);
+}
+</script>
+</body>
+</html>
